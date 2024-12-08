@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Projet SIG</title>
+        <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
+        <script src="lib/leaflet/leaflet.js"></script>
+        <link rel="stylesheet" href="css/style.css">
+        <script src="js/jquery.js"></script>
+
+        <link rel="stylesheet" href="lib/styledlayer/css/styledLayerControl.css">
+        <script src="lib/styledlayer/src/styledLayerControl.js"></script>
+
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://unpkg.com/leaflet.minicharts@1.1.0"></script>
+
+        <script src="https://unpkg.com/leaflet.minichart/dist/leaflet.minichart.min.js" charset="utf-8"></script>
+
+        <link rel="stylesheet" href="lib/legend/src/leaflet.legend.css">
+        <script src="lib/legend/src/leaflet.legend.js"></script>
+
+        <link rel="stylesheet" href="lib/locate/dist/L.Control.Locate.css">
+        <script src="lib/locate/src/L.Control.Locate.js"></script>
+
+        <script src="lib/betterscale/L.Control.BetterScale.js"></script>
+        <link rel="stylesheet" href="lib/betterscale/L.Control.BetterScale.css">
+
+
+        
+
+
+        <script src="lib/chart/leaflet.minichart.js"></script>
+        <script src="lib/turf/turf.js"></script>
+
+
+
+
+    </head>
+
+
+    <style>
+        /* Palette de couleurs */
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --background-color: #ecf0f1;
+            --text-color: #333;
+            --footer-color: #34495e;
+        }
+
+        /* Styles de base */
+        body {
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        /* Barre de navigation */
+        nav {
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            /* Ombre accentuée */
+            border-bottom: 3px solid var(--primary-color);
+            /* Bordure visible */
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        nav h1 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+
+        /* Conteneur principal */
+        .container {
+            display: flex;
+            height: calc(100vh - 140px);
+        }
+
+        /* Panneau de requêtes à gauche */
+        .left-panel {
+            width: 20%;
+            padding: 15px;
+            background-color: var(--background-color);
+            box-shadow: 4px 0 8px rgba(0, 0, 0, 0.2);
+            /* Ombre sur les côtés */
+            border: 2px solid var(--primary-color);
+            /* Bordures visibles */
+            border-radius: 8px;
+            /* Coins arrondis pour un design moderne */
+            overflow-y: auto;
+        }
+
+        /* Carte Leaflet */
+        #map {
+            width: 60%;
+            height: 100%;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            /* Ombre autour de la carte */
+            border: 3px solid var(--secondary-color);
+            /* Bordure sombre autour de la carte */
+        }
+
+        /* Pied de page */
+        footer {
+            background-color: var(--footer-color);
+            color: white;
+            text-align: center;
+            padding: 10px;
+            box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.3);
+            /* Ombre en haut */
+            border-top: 3px solid var(--primary-color);
+            /* Bordure en haut visible */
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* Médias queries pour la réactivité */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            #map {
+                width: 100%;
+                height: 300px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+                /* Ajustement de l'ombre */
+            }
+
+            .left-panel {
+                width: 100%;
+                box-shadow: none;
+                padding: 20px;
+                border: none;
+            }
+        }
+        hr {
+            height: 5px;
+            /* Augmente l'épaisseur à 5 pixels */
+            background-color: black;
+            /* Change la couleur de la ligne */
+            border: none;
+            /* Supprime toute bordure par défaut */
+            margin: 7px 0;
+            /* Optionnel : ajoute un espace autour de la ligne */
+        }
+        .btn-ombre {
+            background: linear-gradient(145deg, #6c63ff, #4a4ae6);
+            border: none;
+            border-radius: 5px;
+            /* Ajustement du radius pour correspondre aux autres éléments */
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            /* Adoucir l'ombre */
+            color: #fff;
+            padding: 10px;
+            /* Réduction du padding pour s'adapter aux autres éléments */
+            font-size: 12.5px;
+            /* Ajuster la taille de la police */
+            font-weight: bolder;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.3s;
+            width: 100%;
+            /* Garder la largeur cohérente avec les select */
+            margin-top: 0px;
+            /* Ajustement de l'espacement par rapport au dernier select */
+        }
+    
+        .btn-ombre:hover {
+            background: linear-gradient(145deg, #4a4ae6, #6c63ff);
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+        }
+    
+        .btn-ombre:active {
+            background: linear-gradient(145deg, #4a4ae6, #6c63ff);
+            box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.2);
+            transform: translateY(2px);
+        }
+    
+    </style>
+
+
+
+    <body>
+        <!-- Barre de navigation -->
+        <nav>
+            <h1> Cartographie du taux d'urbanisation de quatre annees
+            </h1>
+
+        </nav>
+        <!-- Conteneur principal -->
+        <div class="container">
+
+            <!-- Panneau de requêtes à gauche -->
+            <aside class="left-panel">
+                <h3>Taux d'urbanisation</h3>
+                <select onchange="AfficheRegion(this.value)"
+                    style="padding: 8px; width: 100%; border-radius: 4px; font-size: 1rem; font-weight: bold;">
+                    <option value="*">Sélectionnez un Quartier</option>
+                    <option value="rien">Désélectionner</option>
+                    <option value="Dakar">Dakar</option>
+                    <option value="Saint-Louis">Saint-Louis</option>
+                    <option value="Thies">Thies</option>
+                    <option value="Ziguinshor">Ziguinshor</option>
+                    <option value="Fatick">Fatick</option>
+                    <option value="Kolda">Kolda</option>
+                    <option value="Kaolack">Kaolack</option>
+                    <option value="Kedougou">Kédougou</option>
+                    <option value="Diourbel">Diourbel</option>
+                    <option value="Louga">Louga</option>
+                    <option value="Sedhiou">Sedhiou</option>
+                    <option value="Matam">Matam</option>
+                    <option value="Kaffrine">Kaffrine</option>
+                    <option value="Tambacounda">Tambacounda</option>
+                </select>
+                <hr>
+
+
+                <h3>Impacts Floristiques </h3>
+                <button class="btn-ombre" onclick="AfficheTab()">Exploration des donnees</button>
+                <hr>
+
+                <h3>Impacts Floristiques </h3>
+                <button class="btn-ombre" onclick="Retour()">Retourner</button>
+                <hr>
+    
+
+            </aside>
+
+          
+
+
+            <!-- Carte Leaflet -->
+            <section id="map"></section>
+
+
+
+
+        </div>
+
+        <!-- Pied de page -->
+        <footer>
+            <p>&copy;<b> 2024 marisha TINE</b></p>
+        </footer>
+
+        <script>
+
+            // Initialisation de la carte Leaflet
+            var map = L.map('map').setView([14.692778, -14.446667], 7); // Coordonnées pour Dakar
+
+            var satellite = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 23,
+                attributions: ['Powered by Esri', 'Source: Esri, DigitalGlobe, GeoEye, Earthstar Geographics'],
+                id: 'mapbox/light-v9',
+            });
+
+            var topo_map = L.tileLayer('https://services.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 23,
+                attributions: ['Powered by Esri', 'Source: Esri, FAO, NOAA'],
+                id: 'mapbox/light-v9',
+            });
+
+            var ocean = L.tileLayer('https://services.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 25,
+                attribution: ['Powered by Esri', 'Source: Esri, FAO, NOAA']
+            });
+
+            var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+
+  function AfficheGraph() {
+                window.location.href = "Enquete/Enq.html";
+            }
+
+  function Retour() {
+    window.location.href = "../taux_ub.html";
+}
+
+            var region = L.featureGroup();
+
+
+
+
+            region.addTo(map);
+
+
+
+
+            var baseMaps = [
+                {
+                    groupName: "Carte de fond Google",
+                    expanded: true,
+                    layers: {
+                        "Satellite": satellite,
+                        "Topo Map": topo_map,
+                        "Ocean": ocean
+                    }
+                }, {
+                    groupName: "Carte de fond OSM",
+                    layers: {
+                        "OpenStreetMaps": osm
+                    }
+                }
+            ];
+
+
+            var overlays = [
+                {
+                    groupName: "Entité administrative",
+                    expanded: true,
+                    layers: {
+                        "Région": region
+                       
+
+                    }
+                }
+            ];
+
+
+            var options = {
+                container_width: "300px",
+                container_maxHeight: "700px",
+                group_maxHeight: "80px",
+                exclusive: false
+            };
+
+            var control = L.Control.styledLayerControl(baseMaps, overlays, options);
+            map.addControl(control);
+
+
+
+
+            // Dictionnaire des styles par Commune
+            var regionStyles = {
+                "Dakar": createRegionStyle("black"),
+                "Louga": createRegionStyle("black"),
+                "Matam": createRegionStyle("black"),
+                "Fatick": createRegionStyle("black"),
+                "Diourbel": createRegionStyle("black"),
+                "Kaolack": createRegionStyle("black"),
+                "Kolda": createRegionStyle("black"),
+                "Kédougou": createRegionStyle("black"),
+                "Saint-Louis": createRegionStyle("black"),
+                "Sedhiou": createRegionStyle("black"),
+                "Tambacounda": createRegionStyle("black"),
+                "Thiès": createRegionStyle("black"),
+                "Ziguinchor": createRegionStyle("black"),
+                "Kaffrine": createRegionStyle("black")
+            };
+
+
+            // Fonction pour créer des styles dynamiques en fonction des propriétés de la région
+            function createRegionStyle(color, opacity, weight, fillOpacity) {
+                return {
+                    color: color,
+                    opacity: opacity || 0.7,
+                    weight: weight || 2,
+                    fillOpacity: fillOpacity || 0
+                };
+            }
+
+
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+            // Fonction pour afficher les régions avec leurs styles spécifiques
+           // function AfficheRegion() {
+                $.getJSON('api/region.php', //?region= + regionName 
+                    function (result) {
+                        //region.clearLayers(); // Effacer les anciennes couches
+                        L.geoJSON(result, {
+                            style: function (feature) {
+                                return regionStyles[feature.properties.region] || createRegionStyle("grey", 0.5, 1, 0.5); // Style par défaut si non défini
+                            }
+                    }).addTo(region).bindTooltip("Région").bindPopup(function (layer) {
+                        var popupContent = `
+                <table class="popup-table">
+                   // <tr><td>Région numéro </td><td>${layer.feature.properties.id}</td></tr>
+                    <tr><td>Région de </td><td>${layer.feature.properties.region}</td></tr>
+                    <tr><td>TAUX_1976 </td><td>${layer.feature.properties.taux1976}</td></tr>
+                    <tr><td>TAUX_1988 </td><td>${layer.feature.properties.taux1988}</td></tr>
+                    <tr><td>TAUX_2002 </td><td>${layer.feature.properties.taux2002}</td></tr>
+                    <tr><td>TAUX_2013 </td><td>${layer.feature.properties.taux2013}</td></tr>
+                    <tr><td>TAUX_2023 </td><td>${layer.feature.properties.taux2023}</td></tr>
+
+
+
+                    
+
+
+       
+                </table>`;
+                        return popupContent;
+                    });
+
+                    map.fitBounds(region.getBounds());
+
+                }).fail(function () {
+                    alert("Attention, il y a des erreurs lors de la récupération des données.");
+                });
+
+
+            // }
+
+            // // Appel de la fonction pour afficher toutes les régions
+            // AfficheRegion();
+
+
+
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+            /////////////////////////////////////////////////////////////////////////////////////////////////
+           // Crée un contrôle personnalisé pour la flèche nord
+             L.Control.North = L.Control.extend({
+
+                 onAdd: function (map) {
+                     var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+
+                   container.style.backgroundImage = "url('icon/th.jpeg')";
+                   container.style.width = '30px';  // largeur de l'image
+                   container.style.height = '30px'; // hauteur de l'image
+                   container.style.backgroundSize = "contain";
+                 return container;
+                }
+             });
+
+            // // Ajoute le contrôle à la carte
+ 
+ // Fonction pour récupérer les données via l'API
+ fetch('api/region.php') // Mettez l'URL de votre API
+ .then(response => response.json())
+    .then(data => {
+        // Ajouter les polygones GeoJSON
+        L.geoJSON(data, {
+            style: function (feature) {
+                return { color: '#3388ff', weight: 0.01, fillOpacity: 0.01 };
+            },
+            onEachFeature: function (feature, layer) {
+                // Récupérer les colonnes des taux
+                var taux = [
+                    feature.properties.taux1976 || 0,
+                    feature.properties.taux1988 || 0,
+                    feature.properties.taux2002 || 0,
+                    feature.properties.taux2013 || 0,
+                    feature.properties.taux2023 || 0
+                ];
+
+                // Centroid pour positionner le MiniChart
+                var centroid = turf.centroid(feature);
+                var chart = L.minichart([centroid.geometry.coordinates[1], centroid.geometry.coordinates[0]], {
+                    data: taux,
+                    type: 'bar',
+                    width: 60,
+                    height: 60,
+                    colors: ['#FF5733', '#33FF57', '#3357FF', '#F0FF33', '#FF33F0'],
+                    maxValues: Math.max(...taux) // Trouve la valeur maximale pour ajuster les proportions
+                });
+
+                map.addLayer(chart);
+
+                // Interaction avec le panneau d'information
+                layer.on('click', function () {
+                    document.getElementById('region-name').innerText = feature.properties.region;
+                    document.getElementById('taux-1976').innerText = taux[0];
+                    document.getElementById('taux-1988').innerText = taux[1];
+                    document.getElementById('taux-2002').innerText = taux[2];
+                    document.getElementById('taux-2013').innerText = taux[3];
+                    document.getElementById('taux-2023').innerText = taux[4];
+                });
+            }
+        }).addTo(map);
+    })
+    .catch(error => {
+        console.error('Erreur lors de la récupération des données :', error);
+    });
+</script>
+
+</body>
+
+</html>

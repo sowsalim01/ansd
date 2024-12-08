@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartographie interactive</title>
+    <link rel="stylesheet" href="lib/leaflet/leaflet.css" />
+    <script src="lib/leaflet/leaflet.js"></script>
+    <link href="lib/googleapis/css2.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+
+    <script src="js/jquery.js"></script>
+    <script src="js/point.js"></script>
+
+    <link rel="stylesheet"
+            href="lib/styledlayer/css/styledLayerControl.css">
+    <script src="lib/styledlayer/src/styledLayerControl.js"></script>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <script
+            charset="utf-8"></script>
+
+    <link rel="stylesheet" href="lib/legend/src/leaflet.legend.css">
+    <script src="lib/legend/src/leaflet.legend.js"></script>
+
+    <link rel="stylesheet" href="lib/locate/dist/L.Control.Locate.css">
+    <script src="lib/locate/src/L.Control.Locate.js"></script>
+
+    <script src="lib/betterscale/L.Control.BetterScale.js"></script>
+    <link rel="stylesheet" href="lib/betterscale/L.Control.BetterScale.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet.minicharts@1.1.0"></script>
+
+    <script src="https://unpkg.com/leaflet.minichart/dist/leaflet.minichart.min.js" charset="utf-8"></script>
+    <script src="lib/turf/turf.js"></script>
+
+
+    <style>  
+    /* styles.css */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+
+#map {
+    height: 100vh;
+    width: 100%;
+    position: relative;
+}
+
+#info-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: white;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    width: 200px;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#info-panel h3 {
+    margin: 0 0 10px;
+}
+
+#legend {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background-color: white;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.legend-box {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    margin-right: 5px;
+    border: 1px solid #ccc;
+    vertical-align: middle;
+}
+
+    </style>
+</head>
+<body>
+    <!-- Barre de navigation -->
+    <div class="navbar">
+        Cartographie interactive de la démographie au Sénégal [données ansd]
+    </div>
+
+    <!-- Corps principal -->
+    <div class="main">
+        <!-- Panneau de requête -->
+        <div class="left-panel" id="leftPanel">
+            <h2>Panneau de requête</h2>
+            <div id="info-panel">
+                <h3>Informations sur la région</h3>
+                <p id="region-name">Cliquez sur une région</p>
+                <p><strong>Hommes : </strong><span id="hommes">-</span></p>
+                <p><strong>Femmes : </strong><span id="femmes">-</span></p>
+            </div>
+            <div id="info-panel">
+                <h4 id="region-name">Nom de la région</h4>
+                <p>Taux 1976: <span id="taux-1976"></span></p>
+                <p>Taux 1988: <span id="taux-1988"></span></p>
+                <p>Taux 2002: <span id="taux-2002"></span></p>
+                <p>Taux 2013: <span id="taux-2013"></span></p>
+                <p>Taux 2023: <span id="taux-2023"></span></p>
+            </div>
+        </div>
+
+        <!-- Bouton de contrôle pour montrer/cacher le panneau -->
+        <button class="toggle-button" id="toggleButton">Fermer</button>
+
+        <!-- Carte Leaflet -->
+        <div class="right-panel">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Pied de page -->
+    <div class="footer">
+        © 2024 - Mamadou SOW
+    </div>
+
+    <script>
+        // Initialisation de la carte Leaflet
+        var map = L.map('map').setView([14.692778, -14.446667], 7); // Coordonnées pour Dakar
+
+        // Bouton pour montrer/cacher le panneau de requête
+        var toggleButton = document.getElementById('toggleButton');
+        var leftPanel = document.getElementById('leftPanel');
+        var isPanelVisible = true;
+
+        toggleButton.addEventListener('click', function () {
+            isPanelVisible = !isPanelVisible;
+            if (isPanelVisible) {
+                leftPanel.classList.remove('hidden');
+                toggleButton.textContent = 'Fermer';
+                toggleButton.style.left = '320px'; // Repositionner le bouton
+            } else {
+                leftPanel.classList.add('hidden');
+                toggleButton.textContent = 'Panneau';
+                toggleButton.style.left = '20px'; // Repositionner le bouton
+            }
+        });
+
+        var satellite = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 23,
+                attributions: ['Powered by Esri', 'Source: Esri, DigitalGlobe, GeoEye, Earthstar Geographics'],
+                id: 'mapbox/light-v9',
+                }); 
+    
+            var topo_map = L.tileLayer('https://services.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 23,
+                attributions: ['Powered by Esri','Source: Esri, FAO, NOAA'],
+                id: 'mapbox/light-v9',
+                });
+    
+            var ocean = L.tileLayer('https://services.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 25,
+                attribution: ['Powered by Esri','Source: Esri, FAO, NOAA']
+                });
+    
+            var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 25,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            var commune = L.featureGroup();
+            var dens = L.featureGroup();
+            var departement = L.featureGroup();
+            var points = L.featureGroup();
+            var sen = L.featureGroup();
+            var bubbleLayer = L.featureGroup();
+            var tauxsen23 = L.featureGroup();
+            var hommefemme = L.featureGroup();
+            var taux = L.featureGroup();
+            taux.addTo(map);
+            hommefemme.addTo(map);
+            tauxsen23.addTo(map);
+            commune.addTo(map);
+            dens.addTo(map);
+            departement.addTo(map);
+            points.addTo(map);
+            sen.addTo(map);
+
+            var baseMaps = [
+                        { 
+                            groupName : "Carte de fond Google",
+                            expanded : true,
+                            layers    : {
+                                "Satellite" :  satellite,
+                                "Topo Map"  :  topo_map,
+                                "Ocean"   :  ocean
+                            }
+                        }, {
+                            groupName : "Carte de fond OSM",
+                            layers    : {
+                                "OpenStreetMaps" : osm
+                            }
+                        }							
+                ];
+            
+            var overlays = [
+                         {
+                            groupName : "Densité de la population",
+                            expanded  : true,
+                            layers    : { 
+                                "Densité" : dens,							
+                                "Population en 2023" 	 : bubbleLayer,
+                                "Taux d'urbanisation 2023" : tauxsen23,
+                                "Taux de 1976 à 2023" : taux
+
+                            }	
+                         }, {
+                            groupName : "Repartition",
+                            expanded  : true,
+                            layers    : { 
+                                "Repartition Hommes femmes"     : hommefemme
+                            }	
+                         }							 
+                ];
+            
+            var options = {
+                    container_width 	: "300px",
+                    container_maxHeight : "700px", 
+                    group_maxHeight     : "80px",
+                    exclusive       	: false
+                };
+        
+    var control = L.Control.styledLayerControl(baseMaps, overlays, options);
+    map.addControl(control);
+    
+    // AfficherIndice();
+    L.control.betterscale({position:"bottomright"}).addTo(map);
+   
+    // Crée un contrôle personnalisé pour la flèche nord
+    L.Control.North = L.Control.extend({
+            onAdd: function (map) {
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                container.style.backgroundImage = "url('http://localhost/ansd/icon/th.jpeg')"; // Exemple d'image
+                container.style.width = '45px';
+                container.style.height = '45px';
+                container.style.backgroundSize = "contain";
+                container.style.cursor = "pointer"; // Optionnel : style de pointeur
+                return container;
+            }
+        });
+
+        L.control.north = function (opts) {
+            return new L.Control.North(opts);
+        };
+
+        // Ajouter le contrôle à la carte
+        L.control.north({ position: 'topright' }).addTo(map);
+
+        
+
+
+    var style = {
+        color: "red",
+        opacity: 0.7,
+        weight: 5,
+        fillOpacity: 0.01
+            };
+$.ajax({
+    url: 'api/zone.php',
+    dataType: 'json',
+    success: function(data) {
+
+        // Ajouter les polygones à la carte
+        var ind = L.geoJSON(data, {
+            style: style
+        });
+        ind.addTo(sen);
+    },
+    error: function() {
+        alert('Erreur lors du chargement des données GeoJSON');
+    }
+});
+
+function getColor(d) {
+            return d > 1000 ? '#800026' :
+                   d > 500  ? '#BD0026' :
+                   d > 200  ? '#E31A1C' :
+                   d > 100  ? '#FC4E2A' :
+                   d > 50   ? '#FD8D3C' :
+                   d > 20   ? '#FEB24C' :
+                   d > 10   ? '#FED976' :
+                              '#FFEDA0';
+        }
+
+        function styleDensite(feature) {
+            return {
+                fillColor: getColor(feature.properties.densite),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 0.7
+            };
+        }
+
+        // Charger les données GeoJSON via AJAX
+        $.ajax({
+            url: 'api/region.php', // Fichier PHP qui renvoie les données GeoJSON
+            dataType: 'json',
+            success: function(data) {
+                // Ajouter les données GeoJSON au FeatureGroup
+                const geoLayer = L.geoJson(data, {
+                    style: styleDensite,
+                    onEachFeature: function (feature, layer) {
+                        layer.bindPopup(`<strong>Région : </strong>${feature.properties.region}<br>
+                                         <strong>Densité : </strong>${feature.properties.densite}`);
+
+                        layer.bindTooltip(`${feature.properties.region}<br> ${feature.properties.densite}`, 
+                            { permanent: true, direction: "center", className: "region-label" }
+                        );
+                    }
+                });
+                dens.clearLayers(); // Vider les anciennes couches si nécessaire
+                dens.addLayer(geoLayer); // Ajouter la nouvelle couche
+            },
+            error: function() {
+                alert('Impossible de charger les données GeoJSON');
+            }
+        });
+
+        // Option : Ajuster les limites de la carte pour correspondre aux données
+        dens.on('add', function() {
+            map.fitBounds(dens.getBounds());
+        });
+
+    // Données GeoJSON
+    var geojsonData = {
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-17.265417547, 14.754650572]
+            },
+            "properties": {
+                "region": "Dakar",
+                "pop2023": 4004426
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-16.120611684, 14.780962498]
+            },
+            "properties": {
+                "region": "Diourbel",
+                "pop2023": 2080333
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-16.34728954, 14.156330977]
+            },
+            "properties": {
+                "region": "Fatick",
+                "pop2023": 906918
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-12.194913095, 12.843418778]
+            },
+            "properties": {
+                "region": "Kedougou",
+                "pop2023": 245147
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-15.185720446, 14.219090094]
+            },
+            "properties": {
+                "region": "Kaffrine",
+                "pop2023": 820405
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-15.932601106, 13.971022093]
+            },
+            "properties": {
+                "region": "Kaolack",
+                "pop2023": 1336720
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-14.416624355, 13.030193115]
+            },
+            "properties": {
+                "region": "Kolda",
+                "pop2023": 914798
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-15.541614471, 15.426567636]
+            },
+            "properties": {
+                "region": "Louga",
+                "pop2023": 1125908
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-13.72758328, 15.143359006]
+            },
+            "properties": {
+                "region": "Matam",
+                "pop2023": 831630
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-15.586911725, 12.893239123]
+            },
+            "properties": {
+                "region": "Sedhiou",
+                "pop2023": 589266
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-15.000570718, 16.17557036]
+            },
+            "properties": {
+                "region": "Saint-Louis",
+                "pop2023": 1202441
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-13.225081076, 13.891979448]
+            },
+            "properties": {
+                "region": "Tambacounda",
+                "pop2023": 987152
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-16.754355428, 14.831838125]
+            },
+            "properties": {
+                "region": "Thies",
+                "pop2023": 2463677
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [-16.37396661, 12.779281962]
+            },
+            "properties": {
+                "region": "Ziguinchor",
+                "pop2023": 617567
+            }
+        }
+    ]
+};
+
+
+function calculateRadius(population) {
+            return Math.sqrt(population) / 50; // Ajustez ce facteur pour l'échelle
+        }
+
+        // Fonction pour formater la population en étiquette
+        function formatPopulation(population) {
+            if (population >= 1000000) {
+                return (population / 1000000).toFixed(1) + "M"; // En millions
+            } else if (population >= 1000) {
+                return Math.round(population / 1000) + "K"; // En milliers
+            }
+            return population.toString();
+        }
+
+        // Créer un featureGroup pour regrouper les bulles
+
+        // Parcourir les données GeoJSON et ajouter des bulles avec étiquettes
+        geojsonData.features.forEach(function (feature) {
+            var coords = feature.geometry.coordinates;
+            var props = feature.properties;
+
+            // Ajouter un cercle proportionnel à la population
+            var circle = L.circleMarker([coords[1], coords[0]], {
+                radius: calculateRadius(props.pop2023),
+                color: '#0c53b5',
+                fillColor: '#0c53b5',
+                fillOpacity: 2,
+                weight: 1
+            }).bindPopup(`
+                <strong>Région : </strong>${props.region}<br>
+                <strong>Population 2023 : </strong>${props.pop2023.toLocaleString()}
+            `);
+
+            // Ajouter une étiquette au centre du cercle
+            var label = L.divIcon({
+                className: 'bubble-label',
+                html: formatPopulation(props.pop2023),
+                iconSize: [0, 0] // Pas d'effet sur la taille
+            });
+
+            // Ajouter le marqueur avec l'étiquette
+            var labelMarker = L.marker([coords[1], coords[0]], { icon: label });
+
+            // Ajouter les deux à la couche des bulles
+            bubbleLayer.addLayer(circle);
+            bubbleLayer.addLayer(labelMarker);
+        });
+
+        // Ajouter le featureGroup à la carte
+        bubbleLayer.addTo(map);
+
+        var geojsonDat = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-17.265417547, 14.754650572]
+                    },
+                    "properties": {
+                        "region": "Dakar",
+                        "hommes": 2002213,
+                        "femmes": 2002213
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-16.120611684, 14.780962498]
+                    },
+                    "properties": {
+                        "region": "Diourbel",
+                        "hommes": 1040166,
+                        "femmes": 1040167
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [-16.34728954, 14.156330977]
+                    },
+                    "properties": {
+                        "region": "Fatick",
+                        "hommes": 453459,
+                        "femmes": 453459
+                    }
+                }
+                // Ajoutez les autres régions ici...
+            ]
+        };
+
+
+        // Fonction pour récupérer les données via l'API
+fetch('api/region.php')
+    .then(response => response.json())
+    .then(data => {
+        // Ajouter les polygones GeoJSON
+        L.geoJSON(data, {
+            style: function (feature) {
+                return { color: '#3388ff', weight: 0.01, fillOpacity: 0.01 };
+            },
+            onEachFeature: function (feature, layer) {
+                var homme = feature.properties.homme;
+                var femme = feature.properties.femme;
+
+                // Centroid pour positionner le MiniChart
+                var centroid = turf.centroid(feature);
+                var chart = L.minichart([centroid.geometry.coordinates[1], centroid.geometry.coordinates[0]], {
+                    data: [homme, femme],
+                    type: 'bar',
+                    width: 40,
+                    height: 40,
+                    colors: ['#007bff', '#ff5733'],
+                    maxValues: Math.max(homme, femme)
+                });
+
+                hommefemme.addLayer(chart);
+
+                // Interaction avec le panneau d'information
+                layer.on('click', function () {
+                    document.getElementById('region-name').innerText = feature.properties.region;
+                    document.getElementById('hommes').innerText = homme;
+                    document.getElementById('femmes').innerText = femme;
+                });
+            }
+        });
+        hommefemme.addTo(map);
+    })
+    .catch(error => {
+        console.error('Erreur lors de la récupération des données :', error);
+    });
+
+// Ajouter une légende améliorée
+var legend = L.control({ position: 'bottomright' }); // Position de la légende
+
+legend.onAdd = function (map) {
+    // Création de la div pour la légende
+    var div = L.DomUtil.create('div', 'info legend');
+
+    // Contenu de la légende
+    div.innerHTML = `
+        <h4 style="margin: 0; font-size: 16px;">Légende</h4>
+        <div style="margin: 5px 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; background-color: #007bff; margin-right: 10px; border-radius: 3px;"></span> 
+            Hommes
+        </div>
+        <div>
+            <span style="display: inline-block; width: 20px; height: 20px; background-color: #ff5733; margin-right: 10px; border-radius: 3px;"></span> 
+            Femmes
+        </div>
+        <div style="margin: 5px 0;">
+            <span style="display: inline-block; width: 20px; height: 20px; background-color: #0c53b5; border-radius: 50%; display: inline-block; margin-right: 10px;"></span> 
+            Population
+        </div>
+    `;
+
+    // Appliquer un style global à la légende
+    div.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+    div.style.padding = '10px 15px';
+    div.style.border = '2px solid #ccc';
+    div.style.borderRadius = '5px';
+    div.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+    div.style.fontFamily = 'Arial, sans-serif';
+    div.style.color = '#333';
+    div.style.fontSize = '14px';
+    div.style.marginBottom = '35px';
+
+    return div;
+};
+
+legend.addTo(map); // Ajouter la légende à la carte
+
+function getColor2(d) {
+    return d > 1000 ? '#08306b' :
+           d > 500  ? '#08519c' :
+           d > 200  ? '#2171b5' :
+           d > 100  ? '#4292c6' :
+           d > 50   ? '#6baed6' :
+           d > 20   ? '#9ecae1' :
+           d > 10   ? '#c6dbef' :
+                      '#deebf7';
+}
+
+function styleTaux(feature) {
+    return {
+        fillColor: getColor2(feature.properties.taux2023),
+        weight: 2,
+        opacity: 1,
+        color: 'white',
+        dashArray: '3',
+        fillOpacity: 0.7
+    };
+}
+
+// Charger les données GeoJSON via AJAX
+$.ajax({
+    url: 'api/region.php', // Fichier PHP qui renvoie les données GeoJSON
+    dataType: 'json',
+    success: function(data) {
+        // Ajouter les données GeoJSON au FeatureGroup
+        const geoLayer = L.geoJson(data, {
+            style: styleTaux,
+            onEachFeature: function (feature, layer) {
+                layer.bindPopup(`<strong>Région : </strong>${feature.properties.region}<br>
+                                 <strong>Densité : </strong>${feature.properties.taux2023}`);
+
+                layer.bindTooltip(`${feature.properties.region}<br>${feature.properties.taux2023}`,
+                    { permanent: true, direction: "center", className: "region-label" }
+                );
+            }
+        });
+        tauxsen23.clearLayers(); // Vider les anciennes couches si nécessaire
+        tauxsen23.addLayer(geoLayer); // Ajouter la nouvelle couche
+    },
+    error: function() {
+        alert('Impossible de charger les données GeoJSON');
+    }
+});
+
+// Ajuster les limites de la carte pour correspondre aux données
+tauxsen23.on('add', function() {
+    map.fitBounds(tauxsen23.getBounds());
+});
+
+
+// Fonction pour récupérer les données via l'API
+// fetch('api/region.php')
+//     .then(response => response.json())
+//     .then(data => {
+//         // Ajouter les polygones GeoJSON
+//         L.geoJSON(data, {
+//             style: function (feature) {
+//                 return { color: '#3388ff', weight: 0.01, fillOpacity: 0.01 };
+//             },
+//             onEachFeature: function (feature, layer) {
+//                 // Récupérer les colonnes des taux
+//                 var taux = [
+//                     feature.properties.taux1976 || 0,
+//                     feature.properties.taux1988 || 0,
+//                     feature.properties.taux2002 || 0,
+//                     feature.properties.taux2013 || 0,
+//                     feature.properties.taux2023 || 0
+//                 ];
+
+//                 // Centroid pour positionner le MiniChart
+//                 var centroid = turf.centroid(feature);
+//                 var chart = L.minichart([centroid.geometry.coordinates[1], centroid.geometry.coordinates[0]], {
+//                     data: taux,
+//                     type: 'bar',
+//                     width: 60,
+//                     height: 60,
+//                     colors: ['#FF5733', '#33FF57', '#3357FF', '#F0FF33', '#FF33F0'],
+//                     maxValues: Math.max(...taux) // Trouve la valeur maximale pour ajuster les proportions
+//                 });
+
+//                 map.addLayer(chart);
+
+//                 // Interaction avec le panneau d'information
+//                 layer.on('click', function () {
+//                     document.getElementById('region-name').innerText = feature.properties.region;
+//                     document.getElementById('taux-1976').innerText = taux[0];
+//                     document.getElementById('taux-1988').innerText = taux[1];
+//                     document.getElementById('taux-2002').innerText = taux[2];
+//                     document.getElementById('taux-2013').innerText = taux[3];
+//                     document.getElementById('taux-2023').innerText = taux[4];
+//                 });
+//             }
+//         }).addTo(map);
+//     })
+//     .catch(error => {
+//         console.error('Erreur lors de la récupération des données :', error);
+//     });
+
+    // Fonction pour récupérer les données via l'API
+fetch('api/region.php')
+    .then(response => response.json())
+    .then(data => {
+        // Ajouter les polygones GeoJSON au FeatureGroup
+        L.geoJSON(data, {
+            style: function (feature) {
+                return { color: '#3388ff', weight: 0.01, fillOpacity: 0.01 };
+            },
+            onEachFeature: function (feature, layer) {
+                // Récupérer les colonnes des taux
+                var tauxData = [
+                    feature.properties.taux1976 || 0,
+                    feature.properties.taux1988 || 0,
+                    feature.properties.taux2002 || 0,
+                    feature.properties.taux2013 || 0,
+                    feature.properties.taux2023 || 0
+                ];
+
+                // Centroid pour positionner le MiniChart
+                var centroid = turf.centroid(feature);
+                var chart = L.minichart([centroid.geometry.coordinates[1], centroid.geometry.coordinates[0]], {
+                    data: tauxData,
+                    type: 'bar',
+                    width: 60,
+                    height: 60,
+                    colors: ['#FF5733', '#33FF57', '#3357FF', '#F0FF33', '#FF33F0'],
+                    maxValues: Math.max(...tauxData) // Trouve la valeur maximale pour ajuster les proportions
+                });
+
+                // Ajouter le MiniChart au FeatureGroup
+                taux.addLayer(chart);
+
+                // Interaction avec le panneau d'information
+                layer.on('click', function () {
+                    document.getElementById('region-name').innerText = feature.properties.region;
+                    document.getElementById('taux-1976').innerText = tauxData[0];
+                    document.getElementById('taux-1988').innerText = tauxData[1];
+                    document.getElementById('taux-2002').innerText = tauxData[2];
+                    document.getElementById('taux-2013').innerText = tauxData[3];
+                    document.getElementById('taux-2023').innerText = tauxData[4];
+                });
+
+                // Ajouter le polygone au FeatureGroup
+                taux.addLayer(layer);
+            }
+        });
+    })
+    .catch(error => {
+        console.error('Erreur lors de la récupération des données :', error);
+    });
+
+
+
+    </script>
+    <style>
+        /* Styles personnalisés pour les étiquettes */
+        .region-label {
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            color: #000;
+            background-color: rgba(255, 255, 255, 0.001);
+            border: 0px solid rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+            padding: 1.2px 5px;
+        }
+        .bubble-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            width: 100%;
+            height: 100%;
+            white-space: nowrap;
+        }
+    </style>
+</body>
+</html>
